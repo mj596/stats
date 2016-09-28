@@ -1,0 +1,51 @@
+- pobieramy dane z ediTT
+  zakladamy, ¿e u¿ywamy tylko danych aktualne w ediTT; nie zapisujemy nigdzie historii
+  TODO: dane "historyczne" s± zapisywane w ca³ych statystyk; trzeba rozwa¿yæ jak uaktualniaæ dane - nie liczyæ "dwukrotnie"
+- u¿ywamy
+  SELECT EDI_CLIENT_DESC, APPLICATION, COUNT(*) "COUNT" FROM EDITT_LEVEL1 WHERE MESSAGE_STATUS_DESC = 'FULLY_ACCEPTED' GROUP BY EDI_CLIENT_DESC, APPLICATION ORDER BY COUNT DESC;
+- badamy tylko pierwszych 50 klientów na pocz±tek
+- dla ka¿dego klienta grupujemy dane wed³ug:
+  - usuwamy weekendy
+  - potrzebne wykresy:
+    - ca³y zakres czasu
+    - grupowane po tygodniu
+    - grupowane po dniu
+    - grupowane po godzinie
+    - grupowane po 30 minutach
+    - grupowane po 10 minutach
+  - grupowania: ¶rednia i odchylenie standardowe
+TODO: wybieramy statystykê min ilo¶ci wiadomo¶ci w binie
+TODO: binowanie wed³ug ilo¶ci komunikatów
+TODO: Bayesian blocks?
+
+------------------------------------------------------------------------------
+Pola DB
+------------------------------------------------------------------------------
+Potrzebne informacje:
+timebin_amount: 1, 2, 4, 30 ... NUMBER
+timebin_unit: H, D ... VARCHAR2(10)
+time_unit: 14, 17, 23 ... NUMBER
+fold_time_amount: 1, 2, 4 ... NUMBER
+fold_time_unit: D, W ... VARCHAR2(10)
+type: CUMSUM, IND VARCHAR2(20)
+weekday: Mon, Tue, Wed, Thu, Fri, Sat, Sun, NoWeekend VARCHAR2(20)
+
+Tabela: prediction_stats
+Kolumny:
+ID auto increment
+TIMESTAMP
+CLIENT
+APPLICATION
+TYPE
+WEEKDAY
+TIMEBIN_AMOUNT
+TIMEBIN_UNIT
+TIME
+FOLD_TIME_AMOUNT
+FOLD_TIME_UNIT
+ID_DATA number
+Dane:
+prediction_stats_data
+
+
+
