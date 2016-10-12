@@ -1,7 +1,8 @@
 class DBConnector():
     import cx_Oracle
     
-    def __init__(self):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
         self.connection = None
         self.cursor = None
         self.username = None
@@ -11,15 +12,18 @@ class DBConnector():
         
     def connect(self):
         connection_string = self.username + '/' + self.password + '@' + self.url + '/' + self.dbname
-#        print(connection_string)
+        if self.verbose == True:
+            print(connection_string)
         self.connection = self.cx_Oracle.connect(connection_string)
 
-#        print('Connected to ver.', self.connection.version)
+        if self.verbose == True:
+            print('Connected to ver.', self.connection.version)
         self.cursor = self.connection.cursor()
 
     def disconnect(self):
         self.connection.close()
-#        print('Disconnected')
+        if self.verbose == True:
+            print('Disconnected')
 
     def execute(self, query):
         self.cursor.execute(query)

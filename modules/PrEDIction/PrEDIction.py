@@ -16,7 +16,7 @@ class PrEDIction:
         
     def get_data(self, query):
         db = DBConnector()
-        db.setCredentials('editt_viewer', 'editt_view2016', 'soadb.raben-group.com', 'SOATEST')
+        db.setCredentials('editt_viewer', 'editt_view2016', 'soadb.raben-group.com', 'EDITT')
         db.connect()
         data = db.execute(query)
         db.disconnect()
@@ -26,7 +26,7 @@ class PrEDIction:
 
     def get_clients(self, query):
         db = DBConnector()
-        db.setCredentials('editt_viewer', 'editt_view2016', 'soadb.raben-group.com', 'SOATEST')
+        db.setCredentials('editt_viewer', 'editt_view2016', 'soadb.raben-group.com', 'EDITT')
         db.connect()
         data = db.execute(query)
         db.disconnect()

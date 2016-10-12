@@ -46,6 +46,8 @@ FOLD_TIME_UNIT
 ID_DATA number
 Dane:
 prediction_stats_data
+AVG
+
 
 
 

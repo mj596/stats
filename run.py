@@ -64,7 +64,7 @@ def main():
 #    get_all_clients_query = 'SELECT * FROM (SELECT EDI_CLIENT_DESC, APPLICATION, COUNT(*) \"COUNT\" FROM EDITT.EDITT_LEVEL1 WHERE MESSAGE_STATUS_DESC = \'FULLY_ACCEPTED\' GROUP BY EDI_CLIENT_DESC, APPLICATION ORDER BY COUNT DESC) WHERE ROWNUM <= 1'
 
     prediction = PrEDIction()
-    prediction.set_number_of_clients_limit(10)
+    prediction.set_number_of_clients_limit(300)
     all_clients = prediction.get_clients(get_all_clients_query)
     for client in all_clients:
         print('Working on client ' + prediction.get_client_id(client) + ' - got ' + str(prediction.get_client_count(client)) + ' from DB' )
