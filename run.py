@@ -1,25 +1,18 @@
 from modules.PrEDIction import PrEDIction
-from modules.PrEDIction import PrEDIctionTSDCPrinter
+from modules.PrEDIction import PrEDIctionClient
+from modules.PrEDIction import PrEDIctionPrinter
+import datetime
 
 def process_client(client, document_type, data, prediction, printer):
     
-#    grouping_options = ['1H', '2H', '4H', '1D']
-#    grouping_weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'All', 'NoWeekends']
-
-#    grouping_weekday_options = ['Monday']  
-#    grouping_options = ['1H']
-    
     grouping_weekday_options = []    
-    grouping_options = []
+    grouping_options = ['10Min']
 
-    folding_weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'All', 'NoWeekends']
-    folding_options = ['1H']
-
-    cumsum_weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'All', 'NoWeekends']
-    cumsum_options = ['1H']
+    folding_weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'NoWeekends']
+    folding_options = ['30Min', '1H', '2H']
     
-#    folding_weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'NoWeekends']
-#    folding_options = ['1H']
+    cumsum_weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'NoWeekends']
+    cumsum_options = ['30Min']
 
     for weekday in grouping_weekday_options:
         for option in grouping_options:
@@ -49,7 +42,15 @@ def process_client(client, document_type, data, prediction, printer):
         for option in cumsum_options:
             pregrouped_data = prediction.pregroup_data(data, option)
             prefiltered_data = prediction.prefilter_data_by_weekday(pregrouped_data, weekday)
-            cumsumed_data = prediction.cumsum_folded_data(prefiltered_data, option)
+            cumsumed_data = prediction.cumsum_folded_data(prefiltered_data)
+            
+#            print(cumsumed_data)
+#            dates = cumsumed_data.index.tolist()
+#            values = cumsumed_data.values.tolist()           
+#            for i in range(len(dates)):
+#                if(dates[i].hour == 23):
+#                    print(dates[i].hour,  values[i][0])
+
             folded_data = prediction.fold_data(cumsumed_data, option)
             printer.add_data(folded_data)
             filename = client + '_' + document_type + '_cumsum_' + option + '_' + weekday
@@ -59,25 +60,37 @@ def process_client(client, document_type, data, prediction, printer):
             printer.clean()
             
 def main():
+    accepted_clients = '''select l1.edi_client_desc, l1.application, count(*) "count"
+                          from editt.editt_level1 l1
+                          join editt.editt_level2 l2
+                          on l2.id_lvl1 = l1.id
+                          where l2.line_message_status = 'FULLY_REJECTED'
+                          group by l1.edi_client_desc, l1.application
+                          order by "count" desc'''
 
-    get_all_clients_query = 'SELECT EDI_CLIENT_DESC, APPLICATION, COUNT(*) \"COUNT\" FROM EDITT.EDITT_LEVEL1 WHERE MESSAGE_STATUS_DESC = \'FULLY_ACCEPTED\' GROUP BY EDI_CLIENT_DESC, APPLICATION ORDER BY COUNT DESC'
-#    get_all_clients_query = 'SELECT * FROM (SELECT EDI_CLIENT_DESC, APPLICATION, COUNT(*) \"COUNT\" FROM EDITT.EDITT_LEVEL1 WHERE MESSAGE_STATUS_DESC = \'FULLY_ACCEPTED\' GROUP BY EDI_CLIENT_DESC, APPLICATION ORDER BY COUNT DESC) WHERE ROWNUM <= 1'
-
-    prediction = PrEDIction()
-    prediction.set_number_of_clients_limit(300)
-    all_clients = prediction.get_clients(get_all_clients_query)
-    for client in all_clients:
-        print('Working on client ' + prediction.get_client_id(client) + ' - got ' + str(prediction.get_client_count(client)) + ' from DB' )
- 
-        if prediction.get_client_desc(client) is 'none':
-            query = 'SELECT TRANSMISSION_DATE FROM EDITT.EDITT_LEVEL1 WHERE APPLICATION = \'' + prediction.get_client_document_type(client) + '\' ORDER BY TRANSMISSION_DATE DESC'
-        else:
-            query = 'SELECT TRANSMISSION_DATE FROM EDITT.EDITT_LEVEL1 WHERE EDI_CLIENT_DESC = \'' + prediction.get_client_desc(client) + '\' AND APPLICATION = \'' + prediction.get_client_document_type(client) + '\' ORDER BY TRANSMISSION_DATE DESC'
-
-        data = prediction.get_data(query)
-        printer = PrEDIctionTSDCPrinter()
-
-        process_client(prediction.get_client_desc(client), prediction.get_client_document_type(client), data, prediction, printer)
+    client_1 = '''select l1.transmission_date
+                  from editt.editt_level1 l1
+                  join editt.editt_level2 l2
+                  on l2.id_lvl1 = l1.id
+                  where l2.line_message_status = '''
+    client_2 = ''' and nvl(l1.edi_client_desc, 'none') = '''
+    client_3 = ''' and nvl(l1.application, 'none') = '''
+    client_4 = ''' order by l1.transmission_date desc'''
     
-if __name__ == '__main__':
+    prediction = PrEDIction()
+    printer = PrEDIctionPrinter()
+    client = PrEDIctionClient()
+    
+    prediction.set_number_of_clients_limit(10)    
+    all_clients = prediction.get_clients(accepted_clients)
+    
+    for client_info in all_clients:
+        client.set_client(client_info)
+        print('[' + str(datetime.datetime.now()) + '] ' + 'Working on ' + client.get_id() + ' - got ' + str(client.get_count()) + ' messages' )
+        client_query = client_1 + '\'FULLY_REJECTED\'' + client_2 + client.get_desc() + client_3 + client.get_document_type() + client_4
+        data = prediction.get_data(client_query)
+        process_client(client.get_desc(), client.get_document_type(), data, prediction, printer)
+        client.clean()
+    
+if __name__ == '__main__':    
     main()

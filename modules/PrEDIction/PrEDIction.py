@@ -2,7 +2,7 @@ import numpy as np
 import datetime
 import pandas as pd
 from modules.DBConnector import DBConnector
-from . import PrEDIctionTSDC
+from . import PrEDIctionData
 from ..TimeUtils import TimeUtils
 
 class PrEDIction:
@@ -33,29 +33,6 @@ class PrEDIction:
         return_data = np.array(data[:self.number_of_clients_limit])
         
         return return_data
-
-    def get_client_desc(self, client):
-        if client[0] is None:
-            client[0] = 'none'
-            
-        return client[0]
-
-    def get_client_document_type(self, client):
-        if client[1] is None:
-            client[1] = 'none'
-
-        return client[1]
-    
-    def get_client_id(self, client):
-        if client[0] is None:
-            client[0] = 'none'
-        if client[1] is None:
-            client[1] = 'none'
-
-        return client[0] + '_' + client[1]
-
-    def get_client_count(self, client):
-        return client[2]
     
     def filter_weekends(self, data):
         returnData = []
@@ -76,121 +53,109 @@ class PrEDIction:
         return returnData
 
     def pregroup_data(self, data, type):
-        print( 'Pregrouping data with rule: ' + type )            
-        data_frame = pd.DataFrame( data=np.ones(len(data)), index=data, columns = ['amount'] )        
+        data_frame = pd.DataFrame( data=np.ones(len(data)), index=data, columns = ['amount'] )
         grouped = data_frame.groupby( pd.TimeGrouper(freq=type) ).count()
         return grouped
-
+    
     def prefilter_data_by_weekday(self, data, weekday):
-        print( 'Filtering data by weekday: ' + weekday )
-        
         if weekday == 'All':
             filtered = data
         elif weekday == 'NoWeekends':
             no_weekends_array = np.bool_( (np.sum([[data.index.weekday == 0], [data.index.weekday == 1], [data.index.weekday == 2], [data.index.weekday == 3], [data.index.weekday == 4]], axis=0))[0] )
             filtered = data[no_weekends_array]            
         else:
-            weekday_number = self.timeUtils.get_weekday_number(weekday)            
+            weekday_number = self.timeUtils.get_weekday_number(weekday)
             filtered = data[data.index.weekday == weekday_number]
 
         return filtered
 
-    def get_group_type(self, type):
+    def get_type(self, type):
+        time_unit = 'H'
+        if 'Min' in type:
+            time_unit = 'Min'
         if 'H' in type:
-            group_time_unit = 'H'
-            fold_timespan = 'D'
-        if 'D' in type:
-            group_time_unit = 'D'
-            fold_timespan = 'W'
+            time_unit = 'H'
 
-        group_time_amount = int(type.strip(group_time_unit))
+        time_amount = int(type.strip(time_unit))
             
-        return group_time_amount, group_time_unit, fold_timespan
-    
-    def group_data(self, data, group_type):
+        return time_amount, time_unit
 
-        id = 'grouped_by_' + group_type        
-        print( 'Grouping data by: ' + group_type )
-
-        temp_times = pd.to_datetime(data.index)
-        times = []
-        for _time in temp_times:
-            times.append(datetime.datetime.strptime(str(_time), '%Y-%m-%d %H:%M:%S'))
-        array_times = np.array(times)
-        group_time_amount, group_time_unit, fold_timespan = self.get_group_type( group_type )
+    def get_delta_time(self, time_amount, time_unit):
+        delta_time = 0
         
-        if group_time_unit == 'H':
-            dtimes = 0.5 * np.ones(len(array_times)) * datetime.timedelta(hours=group_time_amount)
-        if group_time_unit == 'D':
-            dtimes = 0.5 * np.ones(len(array_times)) * datetime.timedelta(days=group_time_amount)
+        if time_unit == 'Min':
+            delta_time = datetime.timedelta(hours=0, minutes=int(0.5*time_amount), seconds=0)
+        elif time_unit == 'H':
+            delta_time = datetime.timedelta(hours=0, minutes=int(0.5*60*time_amount), seconds=0)
             
-        grouped_TSDC = PrEDIctionTSDC.PrEDIctionTSDC(id)
-        if(times is not None):
-            grouped_TSDC.set_time(array_times)
-        if(dtimes is not None):
-            grouped_TSDC.set_dtime(dtimes)
-        if(data is not None):
-            grouped_TSDC.set_mean(data.values)
+        return delta_time
 
-        return grouped_TSDC
-
-    def cumsum_folded_data(self, data, group_type):
+    def group_data(self, data, type):
+        time_amount, time_unit = self.get_type(type)
+        delta_time = self.get_delta_time(time_amount, time_unit)
         
+        tsdc = PrEDIctionData.PrEDIctionData()
+
+        tsdc.set_time_amount(time_amount)
+        tsdc.set_time_unit(time_unit)
+
+        selector = [pd.to_datetime(str(t)).strftime("%Y-%m-%d %H:%M") for t in data.index]
+        tsdc.set_time(selector)
+        tsdc.set_delta_time(np.ones(len(selector)) * delta_time)        
+        tsdc.set_mean(data.values.transpose()[0])
+
+        return tsdc
+
+    def cumsum_folded_data(self, data):        
         cumsum_data = data.groupby( pd.TimeGrouper(freq='D'))
-        temp_cumsum_data = pd.DataFrame( data=cumsum_data['amount'].cumsum().values, index=data.index, columns = ['amount'] )
-        return temp_cumsum_data
-    
-    def fold_data(self, data, group_type):
+        return pd.DataFrame( data=cumsum_data['amount'].cumsum().values, index=data.index, columns = ['amount'] )
 
-        id = 'folded_by_' + group_type
-        print( 'Folding data by: ' + group_type )
-
-        group_time_amount, group_time_unit, fold_timespan = self.get_group_type( group_type) 
+    def fold_data(self, data, type):
+        time_amount, time_unit = self.get_type(type)
+        delta_time = self.get_delta_time(time_amount, time_unit)
         
-        if group_time_unit == 'H':
-            selector_values = data.index.hour
-            selector_values_array_max = 24
-            
-        if group_time_unit == 'D':
-            selector_values = data.index.weekday
-            selector_values_array_max = 7            
+        if time_unit == 'Min':
+            selector_max = int(24*60/time_amount)
+        elif time_unit == 'H':
+            selector_max = int(24/time_amount)
 
-        number_of_selector_values_array_bins = int(selector_values_array_max/group_time_amount)
-        selector_values_array = np.int_(np.linspace(0, selector_values_array_max, number_of_selector_values_array_bins+1))
-        array_times = np.array(selector_values_array[:-1])
-        dtimes = np.ones(len(array_times)) * group_time_amount * 0.5
-            
-        folded_TSDC = PrEDIctionTSDC.PrEDIctionTSDC(id)
+        rng = pd.DataFrame(pd.date_range('1/1/2000', periods=selector_max, freq=type))
+        selector = [pd.to_datetime(str(t)).strftime("%H:%M") for t in rng.values.transpose()[0]]
         
-        if(array_times is not None):
-            folded_TSDC.set_time(array_times)
-        if(dtimes is not None):
-            folded_TSDC.set_dtime(dtimes)
-                
+        tsdc = PrEDIctionData.PrEDIctionData()
+
+        tsdc.set_time_amount(time_amount)
+        tsdc.set_time_unit(time_unit)
+        
+        tsdc.set_time(np.array(selector))
+        tsdc.set_delta_time(np.ones(len(selector)) * delta_time)
+        
         mean = []
         std = []
         min_value = []
         max_value = []
 
-        for i in range(len(selector_values_array)-1):
-#            print('Bins range ' + str(selector_values_array[i])+'-'+str(selector_values_array[i+1]))
-            selector = ((selector_values>=selector_values_array[i]) & (selector_values<selector_values_array[i+1]))
-#            print( data[selector].values.transpose()[0] )
-            if( len(data[selector].values.transpose()[0]) != 0 ):
-                mean.append( data[selector].values.transpose()[0].mean() )
-                std.append( data[selector].values.transpose()[0].std() )
-                min_value.append( data[selector].values.transpose()[0].min() )
-                max_value.append( data[selector].values.transpose()[0].max() )
-                folded_TSDC.add_values(selector_values_array[i], data[selector].values.transpose()[0] )
-            else:
-                mean.append( 0 )
-                std.append( 0 )
-                min_value.append( 0 )
-                max_value.append( 0 )
-                
-        folded_TSDC.set_mean( np.array(mean) )
-        folded_TSDC.set_std( np.array(std) )
-        folded_TSDC.set_min( np.array(min_value) )
-        folded_TSDC.set_max( np.array(max_value) )
+        for i in range(len(selector)):
+            start = selector[i]
             
-        return folded_TSDC
+            if i == len(selector)-1:
+                end = selector[0]
+            else:
+                end = selector[i+1]
+                
+            selected = data.between_time(start, end, include_start=True, include_end=False).values.transpose()[0]
+            
+            mean.append( selected.mean() )
+            std.append( selected.std() )
+            min_value.append( selected.min() )
+            max_value.append( selected.max() )
+                
+            tsdc.add_values(start, selected)
+
+        tsdc.set_mean( np.array(mean) )
+        tsdc.set_std( np.array(std) )
+        tsdc.set_min( np.array(min_value) )
+        tsdc.set_max( np.array(max_value) )
+        
+        return tsdc
+    

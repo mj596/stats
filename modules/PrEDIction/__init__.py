@@ -1,3 +1,4 @@
 from .PrEDIction import PrEDIction
-from .PrEDIctionTSDC import PrEDIctionTSDC
-from .PrEDIctionTSDCPrinter import PrEDIctionTSDCPrinter
+from .PrEDIctionData import PrEDIctionData
+from .PrEDIctionPrinter import PrEDIctionPrinter
+from .PrEDIctionClient import PrEDIctionClient
